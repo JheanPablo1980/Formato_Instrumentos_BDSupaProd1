@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Database, Plus, Camera, FileText, Download, History, LogOut, User as UserIcon, Image } from 'lucide-react';
-import { useAppStore } from './store/useAppStore';
+import { useAppStore, UserRole } from './store/useAppStore';
 import { Admin } from './components/Admin';
 import { NuevoRegistro } from './components/NuevoRegistro';
 import { RegistroFotos } from './components/RegistroFotos';
@@ -14,7 +14,7 @@ import { motion, AnimatePresence } from 'motion/react';
 type Tab = 'admin' | 'nuevo' | 'fotos' | 'galeria' | 'perfiles' | 'generar' | 'historial';
 
 export default function App() {
-  const { session, signOut, loadData } = useAppStore();
+  const { session, signOut, loadData, rolePermissions } = useAppStore();
   const [activeTab, setActiveTab] = useState<Tab>('perfiles');
 
   useEffect(() => { 
@@ -25,23 +25,26 @@ export default function App() {
     return <Login />;
   }
 
+  const permissions = rolePermissions[session.role as UserRole] || rolePermissions.INVITADO;
+
   const navigation: { id: Tab; icon: any; label: string; roles: string[] }[] = [
     { id: 'admin', icon: Database, label: 'Admin', roles: ['ADMIN'] },
-    { id: 'nuevo', icon: Plus, label: 'Nuevo', roles: ['ADMIN', 'TECNICO'] },
-    { id: 'fotos', icon: Camera, label: 'Cámara', roles: ['ADMIN', 'TECNICO'] },
+    { id: 'nuevo', icon: Plus, label: 'Nuevo', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
+    { id: 'fotos', icon: Camera, label: 'Cámara', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
     { id: 'galeria', icon: Image, label: 'Fotos', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
     { id: 'perfiles', icon: FileText, label: 'Perfiles', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
-    { id: 'historial', icon: History, label: 'Historial', roles: ['ADMIN', 'TECNICO'] },
+    { id: 'historial', icon: History, label: 'Historial', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
     { id: 'generar', icon: Download, label: 'Exportar', roles: ['ADMIN', 'TECNICO', 'INVITADO'] },
   ];
 
   const filteredNav = navigation.filter(n => {
-    const hasRole = n.roles.includes(session.role);
-    if (!hasRole) return false;
-    
-    // Restricción estricta por correo para Admin e Historial
-    if (n.id === 'admin' || n.id === 'historial') {
-      return session.user.email === '3usajanpapo6@gmail.com';
+    // 1. Verificar si el rol tiene permiso para esta pestaña según la tabla de permisos
+    const hasPermission = permissions[n.id as keyof typeof permissions];
+    if (!hasPermission) return false;
+
+    // 2. Restricción adicional por correo para Admin (siempre)
+    if (n.id === 'admin' && session.user.email !== '3usajanpapo6@gmail.com') {
+      return false;
     }
     
     return true;

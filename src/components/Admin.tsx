@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { Database, Image as ImageIcon, FileSpreadsheet, CloudUpload, Trash2, CheckCircle } from 'lucide-react';
-import { useAppStore } from '../store/useAppStore';
+import { Database, Image as ImageIcon, FileSpreadsheet, CloudUpload, Trash2, CheckCircle, Shield, Eye, EyeOff, Plus, Camera, History, Download, FileText } from 'lucide-react';
+import { useAppStore, UserRole, RolePermissions } from '../store/useAppStore';
 import { Button } from './ui/Button';
 import * as XLSX from 'xlsx';
 import { motion, AnimatePresence } from 'motion/react';
@@ -15,7 +15,9 @@ export const Admin: React.FC = () => {
     totalFactoryReset,
     clearInstrumentos,
     clearFotos,
-    clearPerfiles 
+    clearPerfiles,
+    rolePermissions,
+    updateRolePermissions
   } = useAppStore();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
@@ -114,6 +116,30 @@ export const Admin: React.FC = () => {
     } finally {
       setIsSyncing(false);
     }
+  };
+
+  const handleTogglePermission = async (role: UserRole, key: keyof RolePermissions) => {
+    await updateRolePermissions(role, { [key]: !rolePermissions[role][key] });
+  };
+
+  const sectionIcons: Record<keyof RolePermissions, any> = {
+    admin: Shield,
+    nuevo: Plus,
+    fotos: Camera,
+    galeria: ImageIcon,
+    perfiles: FileText,
+    historial: History,
+    generar: Download,
+  };
+
+  const sectionLabels: Record<keyof RolePermissions, string> = {
+    admin: 'Admin',
+    nuevo: 'Nuevo',
+    fotos: 'Cámara',
+    galeria: 'Fotos',
+    perfiles: 'Perfiles',
+    historial: 'Historial',
+    generar: 'Exportar',
   };
 
   const processFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -297,6 +323,49 @@ export const Admin: React.FC = () => {
         <Button onClick={handleSync} icon={CloudUpload} variant="secondary" disabled={isSyncing}>
           {isSyncing ? 'Sincronizando...' : 'Sincronizar Datos'}
         </Button>
+      </div>
+
+      <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 space-y-6">
+        <h3 className="font-bold text-[#1F3864] text-lg border-b pb-2 flex items-center gap-2">
+          <Shield size={20} className="text-blue-500" /> Control de Accesos (Roles)
+        </h3>
+        <p className="text-xs text-gray-500 italic">Habilita o deshabilita secciones para cada tipo de usuario.</p>
+        
+        {(['TECNICO', 'INVITADO'] as UserRole[]).map(role => (
+          <div key={role} className="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-100">
+            <div className="flex items-center justify-between border-b border-gray-200 pb-2">
+              <span className="font-bold text-xs uppercase tracking-widest text-[#1F3864]">Perfil: {role}</span>
+              <Shield size={14} className="text-gray-400" />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2">
+              {(Object.keys(rolePermissions[role]) as Array<keyof RolePermissions>).map(key => {
+                const isEnabled = rolePermissions[role][key];
+                const Icon = sectionIcons[key];
+                // Admin section is always disabled for non-ADMIN roles here for safety
+                if (key === 'admin' && role !== 'ADMIN') return null;
+
+                return (
+                  <button
+                    key={key}
+                    onClick={() => handleTogglePermission(role, key)}
+                    className={`flex items-center justify-between p-2 rounded-lg border transition-all text-[10px] font-bold uppercase tracking-tight ${
+                      isEnabled 
+                        ? 'bg-blue-50 border-blue-200 text-blue-700 shadow-sm' 
+                        : 'bg-white border-gray-100 text-gray-400 opacity-60'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon size={14} />
+                      <span>{sectionLabels[key]}</span>
+                    </div>
+                    {isEnabled ? <Eye size={12} /> : <EyeOff size={12} />}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div className="bg-[#1F3864] text-white p-6 rounded-xl shadow-lg flex items-center justify-between mb-2">

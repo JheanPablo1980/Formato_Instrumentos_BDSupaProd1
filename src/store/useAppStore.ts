@@ -13,6 +13,16 @@ export interface Instrumento {
 
 export type UserRole = 'ADMIN' | 'TECNICO' | 'INVITADO';
 
+export interface RolePermissions {
+  admin: boolean;
+  nuevo: boolean;
+  fotos: boolean;
+  galeria: boolean;
+  perfiles: boolean;
+  historial: boolean;
+  generar: boolean;
+}
+
 export interface UserSession {
   user: any;
   role: UserRole;
@@ -109,6 +119,7 @@ interface AppState {
   exportLogs: ExportLog[];
   logoBase64: string | null;
   session: UserSession | null;
+  rolePermissions: Record<UserRole, RolePermissions>;
   loadData: () => Promise<void>;
   savePerfil: (perfil: Perfil) => Promise<{ success: boolean; error?: string }>;
   deletePerfil: (id: string) => Promise<void>;
@@ -118,6 +129,7 @@ interface AppState {
   loadInstrumentosBulk: (dataArray: Instrumento[]) => Promise<void>;
   addInstrumento: (inst: Instrumento) => Promise<{ success: boolean; error?: string }>;
   saveLogo: (base64: string) => Promise<void>;
+  updateRolePermissions: (role: UserRole, permissions: Partial<RolePermissions>) => Promise<void>;
   syncWithSupabase: () => Promise<void>;
   clearInstrumentos: () => Promise<void>;
   clearFotos: () => Promise<void>;
@@ -137,6 +149,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     exportLogs: [],
     logoBase64: null,
     session: null,
+    rolePermissions: {
+      ADMIN: { admin: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
+      TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
+      INVITADO: { admin: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
+    },
 
   devLogin: (role) => {
     const mockUser = {
@@ -281,6 +298,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     const instrumentosLocal = await db.getAll('instrumentos');
     const exportLogs = await db.getAll('export_logs');
     const configLogo = await db.get('config', 'logo');
+    const configPermissions = await db.get('config', 'rolePermissions');
     
     // Check session
     const { data: { session } } = await supabase.auth.getSession();
@@ -297,6 +315,11 @@ export const useAppStore = create<AppState>((set, get) => ({
       instrumentos: instrumentosLocal, 
       exportLogs: exportLogs || [],
       logoBase64: configLogo?.value || null,
+      rolePermissions: configPermissions?.value || {
+        ADMIN: { admin: true, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
+        TECNICO: { admin: false, nuevo: true, fotos: true, galeria: true, perfiles: true, historial: true, generar: true },
+        INVITADO: { admin: false, nuevo: false, fotos: false, galeria: true, perfiles: true, historial: false, generar: true }
+      },
       session: session ? { user: session.user, role: userRole } : null
     });
 
@@ -815,5 +838,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     const db = await initDB();
     await db.put('config', { id: 'logo', value: base64 });
     set({ logoBase64: base64 });
+  },
+
+  updateRolePermissions: async (role, permissions) => {
+    const { rolePermissions } = get();
+    const updatedPermissions = {
+      ...rolePermissions,
+      [role]: { ...rolePermissions[role], ...permissions }
+    };
+    
+    const db = await initDB();
+    await db.put('config', { id: 'rolePermissions', value: updatedPermissions });
+    set({ rolePermissions: updatedPermissions });
+
+    // Intentar sincronizar con app_config en Supabase si existe
+    try {
+      await supabase.from('app_config').upsert({ id: 'role_permissions', value: updatedPermissions });
+    } catch (e) {
+      console.warn('No se pudo respaldar permisos en la nube:', e);
+    }
   }
 }));
