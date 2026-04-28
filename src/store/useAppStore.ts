@@ -302,10 +302,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     
     // Check session
     const { data: { session } } = await supabase.auth.getSession();
+    
     let userRole: UserRole = 'INVITADO';
     if (session?.user?.email === ADMIN_EMAIL) {
       userRole = 'ADMIN';
     } else if (session) {
+      // Por defecto, cualquier otro login entra como TECNICO
+      // Puedes ajustar esto si prefieres que entren como INVITADO
       userRole = 'TECNICO';
     }
 
